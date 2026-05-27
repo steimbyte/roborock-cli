@@ -1,59 +1,35 @@
 #!/usr/bin/env python3
 """
-Roborock S7 Pro Ultra - Comprehensive CLI Tool for n8n
+Roborock CLI - Control your Roborock S7 Pro Ultra
+
 Usage: roborock <command> [args]
 
 All commands return JSON.
-Success: {"success": true, "message": "...", "data": {...}}
-Error:   {"success": false, "error": "..."}
+  Success: {"success": true, "message": "...", "data": {...}}
+  Error:   {"success": false, "error": "..."}
 
 Commands:
-  Basic:
-    start                    Start vacuuming (full house)
-    stop                     Stop current operation
-    pause                    Pause vacuuming
-    home                     Return to charging dock
-    spot                     Spot cleaning (current location)
-
-  Status/Info:
-    status                   Get vacuum status (state, battery, etc.)
-    info                     Get device info (model, fw, mac)
-    segments                 Get room/segment mapping from map
-    consumables              Get consumable status (brushes, filters)
-
-  Speed/Water:
-    fan <0-105>              Set fan speed (38=quiet, 105=max)
-    fanspeed                 Get current fan speed
-    water <1-3000>           Set water flow level
-    mop_mode <0-2>           Set mop mode (0=off, 1=low, 2=high)
-
-  Room/Zone Cleaning:
-    clean_rooms <ids>        Clean rooms by segment IDs (comma-separated)
-                             Example: roborock clean_rooms 1,2,3
-    clean_zones <zones>      Clean zones (JSON array format)
-                             Example: roborock clean_zones "[[23500,25000,26500,26500,2]]"
-
-  Maintenance:
-    identify                 Find vacuum (plays sound)
-    reset <consumable>       Reset consumable timer
-                             Options: main_brush, side_brush, filter, sensor
+  Basic:      start, stop, pause, home, spot
+  Status:     status, info, consumables, segments
+  Speed:      fan <0-105>, fanspeed, water <1-3000>, mop_mode <0-2>
+  Cleaning:   clean_rooms <ids>, clean_zones <zones>
+  Other:      identify, reset <consumable>
 
 Environment variables:
-  ROBOROCK_HOST     Vacuum IP (default: 192.168.178.21)
-  ROBOROCK_TOKEN    Local token (default: 4267654170464a6d6e3350366c33356c)
-
-Examples for n8n Execute Command Node:
-  roborock status
-  roborock start
-  roborock clean_rooms 1,2
-  roborock fan 105
+  ROBOROCK_HOST     Vacuum IP address
+  ROBOROCK_TOKEN    Local token
 """
 
 import os
 import sys
 import json
 import argparse
+import logging
 from pathlib import Path
+
+# Suppress python-miio warnings for unsupported models
+logging.getLogger('miio').setLevel(logging.CRITICAL)
+logging.getLogger('miio.device').setLevel(logging.CRITICAL)
 
 # Load .env file if present
 env_file = Path(__file__).parent / ".env"
@@ -391,13 +367,18 @@ def cmd_consumables(args):
     try:
         c = v.consumable_status()
 
-        # Convert timedelta to hours
+        # Convert timedelta to hours (clamp to 0-100 for percentages)
         def to_hours(td):
-            return (
-                round(td.total_seconds() / 3600, 1)
-                if hasattr(td, "total_seconds")
-                else 0
-            )
+            if hasattr(td, 'total_seconds'):
+                val = td.total_seconds() / 3600
+                return max(0, round(val, 1))  # Prevent negative hours
+            return 0
+
+        def pct(left, total):
+            if total:
+                val = left / total * 100
+                return max(0, min(100, round(val, 1)))  # Clamp 0-100
+            return 0
 
         print(
             json.dumps(
@@ -406,22 +387,10 @@ def cmd_consumables(args):
                     "message": "Consumables retrieved",
                     "data": {
                         "main_brush_left_hours": to_hours(c.main_brush_left),
-                        "main_brush_left_percent": round(
-                            c.main_brush_left / c.main_brush_total * 100, 1
-                        )
-                        if c.main_brush_total
-                        else 0,
+                        "main_brush_left_percent": pct(c.main_brush_left, c.main_brush_total),
                         "side_brush_left_hours": to_hours(c.side_brush_left),
-                        "side_brush_left_percent": round(
-                            c.side_brush_left / c.side_brush_total * 100, 1
-                        )
-                        if c.side_brush_total
-                        else 0,
-                        "filter_left_percent": round(
-                            c.filter_left / c.filter_total * 100, 1
-                        )
-                        if c.filter_total
-                        else 0,
+                        "side_brush_left_percent": pct(c.side_brush_left, c.side_brush_total),
+                        "filter_left_percent": pct(c.filter_left, c.filter_total),
                         "sensor_dirty_hours": to_hours(c.sensor_dirty_left),
                     },
                 }
