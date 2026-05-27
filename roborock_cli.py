@@ -11,7 +11,9 @@ All commands return JSON.
 Commands:
   Basic:      start, stop, pause, home, spot
   Status:     status, info, consumables, segments
-  Speed:      fan <0-105>, fanspeed, water <1-3000>, mop_mode <0-2>
+  Fan Speed:  fans (silent|standard|medium|turbo|gentle|auto)
+              fanspeed (show current)
+  Water:      water <1-3000>, mop_mode <0-2>
   Cleaning:   clean_rooms <ids>, clean_zones <zones>
   Other:      identify, reset <consumable>
 
@@ -160,15 +162,38 @@ def cmd_info(args):
         print(json.dumps({"success": False, "error": str(e)}))
 
 
-def cmd_fan(args):
+def cmd_fans(args):
+    """Set fan speed by preset name."""
     v = get_vacuum()
-    level = args.level
-    if not 0 <= level <= 105:
-        print(json.dumps({"success": False, "error": "Fan level must be 0-105"}))
-        return
+    preset_name = args.preset.lower()
+    
     try:
-        v.set_fan_speed(level)
-        print(json.dumps({"success": True, "message": f"Fan speed set to {level}"}))
+        presets = v.fan_speed_presets()
+    except Exception as e:
+        print(json.dumps({"success": False, "error": f"Could not get presets: {str(e)}"}))
+        return
+    
+    # Normalize preset names (e.g., "silent" -> "Silent")
+    preset_name = preset_name.capitalize()
+    
+    if preset_name not in presets:
+        valid = ', '.join(presets.keys())
+        print(json.dumps({
+            "success": False, 
+            "error": f"Unknown preset '{preset_name}'. Valid: {valid}"
+        }))
+        return
+    
+    try:
+        # set_fan_speed_preset takes the preset VALUE (int), not name
+        preset_value = presets[preset_name]
+        v.set_fan_speed_preset(preset_value)
+        print(json.dumps({
+            "success": True, 
+            "message": f"Fan speed set to {preset_name}",
+            "preset": preset_name,
+            "value": preset_value
+        }))
     except Exception as e:
         print(json.dumps({"success": False, "error": str(e)}))
 
@@ -176,13 +201,24 @@ def cmd_fan(args):
 def cmd_fanspeed(args):
     v = get_vacuum()
     try:
+        presets = v.fan_speed_presets()
         s = v.status()
+        
+        # Find current preset name
+        current = None
+        for name, val in presets.items():
+            if val == s.fanspeed:
+                current = name
+                break
+        
         print(
             json.dumps(
                 {
                     "success": True,
-                    "message": f"Current fan speed: {s.fanspeed}",
-                    "fanspeed": s.fanspeed,
+                    "message": f"Current: {current or s.fanspeed}",
+                    "preset": current,
+                    "raw_value": s.fanspeed,
+                    "presets": presets,
                 }
             )
         )
@@ -447,11 +483,11 @@ def main():
     subparsers.add_parser("rooms", help="List known rooms")
     subparsers.add_parser("consumables", help="Get consumable status")
 
-    # Fan/Water
-    p_fan = subparsers.add_parser("fan", help="Set fan speed (0-105)")
-    p_fan.add_argument("level", type=int, help="Fan level")
+    # Fan Speed
+    p_fans = subparsers.add_parser("fans", help="Set fan speed preset")
+    p_fans.add_argument("preset", help="Preset: silent, standard, medium, turbo, gentle, auto")
 
-    subparsers.add_parser("fanspeed", help="Get current fan speed")
+    subparsers.add_parser("fanspeed", help="Get current fan speed + presets")
 
     p_water = subparsers.add_parser("water", help="Set water flow (1-3000)")
     p_water.add_argument("level", type=int, help="Water level")
@@ -496,7 +532,7 @@ def main():
         "spot": cmd_spot,
         "status": cmd_status,
         "info": cmd_info,
-        "fan": cmd_fan,
+        "fans": cmd_fans,
         "fanspeed": cmd_fanspeed,
         "water": cmd_water,
         "mop_mode": cmd_mop_mode,
