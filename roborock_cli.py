@@ -365,6 +365,80 @@ def cmd_identify(args):
         print(json.dumps({"success": False, "error": str(e)}))
 
 
+def cmd_history(args):
+    """Get cleaning history stats."""
+    v = get_vacuum()
+    try:
+        h = v.clean_history()
+        # Convert timedelta to hours
+        def to_hours(td):
+            return round(td.total_seconds() / 3600, 1) if hasattr(td, 'total_seconds') else 0
+        
+        print(json.dumps({
+            "success": True,
+            "message": "Cleaning history retrieved",
+            "data": {
+                "total_cleanings": h.count,
+                "total_area_m2": round(h.total_area, 1),
+                "total_duration_hours": to_hours(h.total_duration),
+                "dust_collections": h.dust_collection_count,
+            }
+        }))
+    except Exception as e:
+        print(json.dumps({"success": False, "error": str(e)}))
+
+
+def cmd_dnd(args):
+    """Get Do Not Disturb status."""
+    v = get_vacuum()
+    try:
+        d = v.dnd_status()
+        print(json.dumps({
+            "success": True,
+            "message": "DND status retrieved",
+            "data": {
+                "enabled": d.enabled,
+                "start": str(d.start),
+                "end": str(d.end),
+            }
+        }))
+    except Exception as e:
+        print(json.dumps({"success": False, "error": str(e)}))
+
+
+def cmd_carpet(args):
+    """Get carpet mode status."""
+    v = get_vacuum()
+    try:
+        c = v.carpet_mode()
+        print(json.dumps({
+            "success": True,
+            "message": "Carpet mode status retrieved",
+            "data": {
+                "enabled": c.enabled,
+                "current_low": c.current_low,
+                "current_high": c.current_high,
+                "stall_time": c.stall_time,
+            }
+        }))
+    except Exception as e:
+        print(json.dumps({"success": False, "error": str(e)}))
+
+
+def cmd_volume(args):
+    """Get sound volume."""
+    v = get_vacuum()
+    try:
+        vol = v.sound_volume()
+        print(json.dumps({
+            "success": True,
+            "message": f"Sound volume: {vol}",
+            "volume": vol,
+        }))
+    except Exception as e:
+        print(json.dumps({"success": False, "error": str(e)}))
+
+
 def cmd_segments(args):
     """Get room/segment mapping from vacuum map."""
     v = get_vacuum()
@@ -482,6 +556,10 @@ def main():
     subparsers.add_parser("segments", help="Get room mapping")
     subparsers.add_parser("rooms", help="List known rooms")
     subparsers.add_parser("consumables", help="Get consumable status")
+    subparsers.add_parser("history", help="Get cleaning history")
+    subparsers.add_parser("dnd", help="Get Do Not Disturb status")
+    subparsers.add_parser("carpet", help="Get carpet mode status")
+    subparsers.add_parser("volume", help="Get sound volume")
 
     # Fan Speed
     p_fans = subparsers.add_parser("fans", help="Set fan speed preset")
@@ -543,6 +621,10 @@ def main():
         "segments": cmd_segments,
         "rooms": cmd_rooms,
         "consumables": cmd_consumables,
+        "history": cmd_history,
+        "dnd": cmd_dnd,
+        "carpet": cmd_carpet,
+        "volume": cmd_volume,
         "reset": cmd_reset,
     }
 
