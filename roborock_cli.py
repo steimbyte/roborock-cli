@@ -534,6 +534,132 @@ def cmd_reset(args):
         print(json.dumps({"success": False, "error": str(e)}))
 
 
+def cmd_childlock(args):
+    """Get/set child lock."""
+    v = get_vacuum()
+    action = args.action
+    
+    try:
+        if action == "status":
+            lock = v.child_lock()
+            print(json.dumps({
+                "success": True,
+                "message": f"Child lock: {lock}",
+                "enabled": lock,
+            }))
+        elif action == "on":
+            v.set_child_lock(True)
+            print(json.dumps({"success": True, "message": "Child lock enabled"}))
+        elif action == "off":
+            v.set_child_lock(False)
+            print(json.dumps({"success": True, "message": "Child lock disabled"}))
+        else:
+            print(json.dumps({"success": False, "error": "Action must be: status, on, off"}))
+    except Exception as e:
+        print(json.dumps({"success": False, "error": str(e)}))
+
+
+def cmd_goto(args):
+    """Go to specific coordinates."""
+    v = get_vacuum()
+    x = args.x
+    y = args.y
+    
+    try:
+        result = v.goto(x, y)
+        print(json.dumps({
+            "success": True,
+            "message": f"Going to coordinates ({x}, {y})",
+            "x": x,
+            "y": y,
+        }))
+    except Exception as e:
+        print(json.dumps({"success": False, "error": str(e)}))
+
+
+def cmd_set_volume(args):
+    """Set sound volume (0-100)."""
+    v = get_vacuum()
+    level = args.level
+    
+    if not 0 <= level <= 100:
+        print(json.dumps({"success": False, "error": "Volume must be 0-100"}))
+        return
+    
+    try:
+        v.set_sound_volume(level)
+        print(json.dumps({
+            "success": True,
+            "message": f"Volume set to {level}",
+            "volume": level,
+        }))
+    except Exception as e:
+        print(json.dumps({"success": False, "error": str(e)}))
+
+
+def cmd_dnd_set(args):
+    """Set Do Not Disturb schedule."""
+    v = get_vacuum()
+    action = args.action
+    start = args.start  # HH:MM format
+    end = args.end      # HH:MM format
+    
+    try:
+        if action == "off":
+            v.disable_dnd()
+            print(json.dumps({"success": True, "message": "DND disabled"}))
+        elif action == "on" and start and end:
+            # Parse time
+            start_parts = start.split(":")
+            end_parts = end.split(":")
+            from datetime import time
+            start_time = time(int(start_parts[0]), int(start_parts[1]))
+            end_time = time(int(end_parts[0]), int(end_parts[1]))
+            v.set_dnd(start_time.hour, start_time.minute, end_time.hour, end_time.minute)
+            print(json.dumps({
+                "success": True,
+                "message": f"DND set: {start} - {end}",
+                "start": start,
+                "end": end,
+            }))
+        else:
+            print(json.dumps({"success": False, "error": "Use: dnd_set on HH:MM HH:MM | dnd_set off"}))
+    except Exception as e:
+        print(json.dumps({"success": False, "error": str(e)}))
+
+
+def cmd_carpet_set(args):
+    """Enable/disable carpet mode."""
+    v = get_vacuum()
+    action = args.action
+    
+    try:
+        if action == "on":
+            v.set_carpet_mode(True)
+            print(json.dumps({"success": True, "message": "Carpet mode enabled"}))
+        elif action == "off":
+            v.set_carpet_mode(False)
+            print(json.dumps({"success": True, "message": "Carpet mode disabled"}))
+        else:
+            print(json.dumps({"success": False, "error": "Action must be: on, off"}))
+    except Exception as e:
+        print(json.dumps({"success": False, "error": str(e)}))
+
+
+def cmd_timers(args):
+    """List scheduled timers."""
+    v = get_vacuum()
+    try:
+        timers = v.timer()
+        print(json.dumps({
+            "success": True,
+            "message": f"Found {len(timers)} timer(s)",
+            "timers": [str(t) for t in timers],
+        }))
+    except Exception as e:
+        print(json.dumps({"success": False, "error": str(e)}))
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Roborock S7 Pro Ultra CLI for n8n",
@@ -595,6 +721,32 @@ def main():
         help="Consumable to reset",
     )
 
+    # Child Lock
+    p_childlock = subparsers.add_parser("childlock", help="Child lock: status, on, off")
+    p_childlock.add_argument("action", help="Action: status, on, off")
+
+    # Goto
+    p_goto = subparsers.add_parser("goto", help="Go to coordinates")
+    p_goto.add_argument("x", type=int, help="X coordinate")
+    p_goto.add_argument("y", type=int, help="Y coordinate")
+
+    # Volume
+    p_setvol = subparsers.add_parser("set_volume", help="Set sound volume (0-100)")
+    p_setvol.add_argument("level", type=int, help="Volume level")
+
+    # DND
+    p_dndset = subparsers.add_parser("dnd_set", help="Set DND schedule")
+    p_dndset.add_argument("action", help="on or off")
+    p_dndset.add_argument("start", nargs="?", help="Start time HH:MM")
+    p_dndset.add_argument("end", nargs="?", help="End time HH:MM")
+
+    # Carpet Mode
+    p_carpetset = subparsers.add_parser("carpet_set", help="Carpet mode: on, off")
+    p_carpetset.add_argument("action", help="on or off")
+
+    # Timers
+    subparsers.add_parser("timers", help="List scheduled timers")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -626,6 +778,12 @@ def main():
         "carpet": cmd_carpet,
         "volume": cmd_volume,
         "reset": cmd_reset,
+        "childlock": cmd_childlock,
+        "goto": cmd_goto,
+        "set_volume": cmd_set_volume,
+        "dnd_set": cmd_dnd_set,
+        "carpet_set": cmd_carpet_set,
+        "timers": cmd_timers,
     }
 
     if args.command in commands:
