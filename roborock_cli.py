@@ -65,6 +65,7 @@ ROOM_MAP = {
 
 def cmd_start(args):
     v = get_vacuum()
+    v.stop()  # Stop any previous cleaning first
     v.start()
     print(json.dumps({"success": True, "message": "Vacuum started"}))
 
@@ -89,6 +90,7 @@ def cmd_home(args):
 
 def cmd_spot(args):
     v = get_vacuum()
+    v.stop()  # Stop any previous cleaning first
     v.spot()
     print(json.dumps({"success": True, "message": "Spot cleaning started"}))
 
@@ -275,6 +277,7 @@ def cmd_clean_rooms(args):
         return
 
     try:
+        v.stop()  # Stop any previous cleaning first
         result = v.segment_clean(segments)
         names = [ROOM_MAP.get(s, f"Room {s}") for s in segments]
         print(
@@ -300,7 +303,7 @@ def cmd_go_room(args):
     room_id = int(args.room_id)
 
     try:
-        # segment_clean - just go to room and clean
+        v.stop()  # Stop any previous cleaning first
         result = v.segment_clean([room_id])
         print(
             json.dumps(
@@ -337,6 +340,7 @@ def cmd_clean_zones(args):
         return
 
     try:
+        v.stop()  # Stop any previous cleaning first
         result = v.zoned_clean(zones)
         print(
             json.dumps(
