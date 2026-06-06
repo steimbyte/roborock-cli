@@ -123,3 +123,9 @@ Alle Commands geben JSON zurück:
 ```json
 {"success": true, "message": "...", "data": {...}}
 ```
+
+---
+
+## Hinweis zur KI-Unterstützung
+
+Bei der Entwicklung dieses Projekts wurden teilweise oder vollständig KI-gestützte Tools und Technologien eingesetzt.
